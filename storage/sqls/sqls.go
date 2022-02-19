@@ -11,12 +11,13 @@ const (
 
 	// CreateUnIdentifiedUserSQL ...
 	CreateUnIdentifiedUserSQL = `
-		INSERT INTO users(username, password) VALUES ($1, $2) RETURNING id
+		INSERT INTO users(id, username, password, access_token, refresh_token) VALUES ($1, $2, $3, $4, $5)
 	`
 
 	// CreateIdentifedUserSQL ...
 	CreateIdentifedUserSQL = `
 		INSERT INTO users(
+			id, 
 			username,
 			full_name,
 			email,
@@ -24,7 +25,7 @@ const (
 			is_identified,
 			access_token,
 			refresh_token) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	// CheckUserTypeSQL ...
 	CheckUserTypeSQL = `
@@ -100,7 +101,8 @@ const (
 			income_amount,
 			created_at
 		FROM cash_controller
-		WHERE user_id = $1 AND (extract(year from cash_controller.created_at) = $2 AND (extract(month from cash_controller.created_at) = $3)
+		WHERE user_id = $1 AND (extract(year from cash_controller.created_at) = $2 AND (extract(month from cash_controller.created_at) = $3))
+			AND income_amount != 0
 	`
 
 	ListTotalExpenseOperationsSQL = `
@@ -108,7 +110,8 @@ const (
 			expense_amount,
 			created_at
 		FROM cash_controller
-		WHERE user_id = $1 AND (extract(year from cash_controller.created_at) = $2 AND (extract(month from cash_controller.created_at) = $3)
+		WHERE user_id = $1 AND (extract(year from cash_controller.created_at) = $2 AND (extract(month from cash_controller.created_at) = $3))
+			AND expense_amount != 0
 	`
 
 )

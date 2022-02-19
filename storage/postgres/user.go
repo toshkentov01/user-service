@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"
 	pb "github.com/toshkentov01/alif-tech-task/user-service/genproto/user-service"
 	newerrors "github.com/toshkentov01/alif-tech-task/user-service/new_errors"
+	"github.com/toshkentov01/alif-tech-task/user-service/pkg/helper"
 	"github.com/toshkentov01/alif-tech-task/user-service/platform/postgres"
 	"github.com/toshkentov01/alif-tech-task/user-service/storage/repo"
 	"github.com/toshkentov01/alif-tech-task/user-service/storage/sqls"
@@ -53,54 +54,37 @@ func (ur *userRepo) CheckFields(username, email string) (*pb.CheckfieldsResponse
 }
 
 // CreateUnIdentifiedUser method creates unidentified users
-func (ur *userRepo) CreateUnIdentifiedUser(username, password string) (*pb.CreateUnIdentifiedUserResponse, error) {
-	var (
-		userID sql.NullString
-	)
-	err := ur.db.QueryRow(sqls.CreateUnIdentifiedUserSQL, username, password).Scan(&userID)
+func (ur *userRepo) CreateUnIdentifiedUser(id, username, password, accessToken, refreshToken string) error {
+	_, err := ur.db.Exec(sqls.CreateUnIdentifiedUserSQL, id, username, password, accessToken, refreshToken)
 	if err != nil {
 		if strings.Contains(err.Error(), `unique constraint "users_username_key"`) {
-			return nil, newerrors.ErrUsernameExists
-		
-		} else {
+			return newerrors.ErrUsernameExists
+
+		} else if err != nil {
 			log.Println("Error while creating unidentified user. ERROR: ", err.Error())
-			return nil, err
+			return err
 		}
 	}
 
-	return &pb.CreateUnIdentifiedUserResponse{
-		Id: userID.String,
-	}, nil
+	return nil
 }
 
 // CreateIdentifiedUser method creates identified users
-func (ur *userRepo) CreateIdentifiedUser(user *pb.CreateIdentifiedUserRequest) (*pb.CreateIdentifiedUserResponse, error) {
-	var (
-		userID sql.NullString
-	)
+func (ur *userRepo) CreateIdentifiedUser(user *pb.CreateIdentifiedUserRequest) error {
 
-	err := ur.db.QueryRow(
+	_, err := ur.db.Exec(
 		sqls.CreateIdentifedUserSQL,
+		user.Id,
 		user.Username, user.FullName,
 		user.Email, user.Password, true,
 		user.AccessToken, user.RefreshToken,
-	).Scan(&userID)
+	)
 
 	if err != nil {
-		if strings.Contains(err.Error(), `unique constraint "users_username_key"`) {
-			return nil, newerrors.ErrUsernameExists
-		
-		} else if strings.Contains(err.Error(), `unique constraint "users_email_key"`) {
-			return nil, newerrors.ErrEmailExists
-		
-		} else {
-			return nil, err
-		}
+		return err
 	}
 
-	return &pb.CreateIdentifiedUserResponse{
-		Id: userID.String,
-	}, nil
+	return nil
 }
 
 // CheckUserType method checks whether user is identified or not
@@ -308,10 +292,12 @@ func (ur *userRepo) ListTotalOperationsByType(operationType, userID string) (*pb
 	now := time.Now()
 
 	year := strconv.Itoa(now.Year())
-	month := now.Month().String()
+	month := time.Now().Month().String()
+
+	convertedMonth := helper.MonthConverter(month)
 
 	if operationType == "income_operations" {
-		rows, err := ur.db.Query(sqls.ListTotalTopUpOperationsSQL, userID, year, month)
+		rows, err := ur.db.Query(sqls.ListTotalTopUpOperationsSQL, userID, year, convertedMonth)
 
 		if err != nil {
 			log.Println("Error while getting income operations, ERROR: ", err.Error())
@@ -339,7 +325,7 @@ func (ur *userRepo) ListTotalOperationsByType(operationType, userID string) (*pb
 			}
 
 			operationAmountStr := strconv.Itoa(int(operationAmount.Int64))
-			action += `+ ` + operationAmountStr + ``
+			action += `+` + operationAmountStr + ``
 
 			result.Action = action
 			result.Date = data.String
@@ -348,7 +334,7 @@ func (ur *userRepo) ListTotalOperationsByType(operationType, userID string) (*pb
 		}
 
 	} else if operationType == "expense_operations" {
-		rows, err := ur.db.Query(sqls.ListTotalExpenseOperationsSQL, userID, year, month)
+		rows, err := ur.db.Query(sqls.ListTotalExpenseOperationsSQL, userID, year, convertedMonth)
 
 		if err != nil {
 			log.Println("Error while getting expense operations, ERROR: ", err.Error())
@@ -376,19 +362,39 @@ func (ur *userRepo) ListTotalOperationsByType(operationType, userID string) (*pb
 			}
 
 			operationAmountStr := strconv.Itoa(int(operationAmount.Int64))
-			action += `- ` + operationAmountStr + ``
+			action += `-` + operationAmountStr + ``
 
 			result.Action = action
 			result.Date = data.String
 
 			results = append(results, &result)
 		}
-	} else {
-
 	}
 
 	return &pb.ListTotalOperationsByTypeResponse{
 		Results: results,
 		Count:   int32(len(results)),
+	}, nil
+}
+
+// CheckUserAccount method checks whether user has an account or not
+func (ur *userRepo) CheckUserAccount(username, password string) (*pb.CheckUserAccountResponse, error) {
+	var (
+		exists sql.NullBool
+	)
+
+	err := ur.db.QueryRow(`
+		SELECT EXISTS(SELECT id FROM users WHERE username = $1 AND password = crypt($2, password))
+	`, username, password).Scan(&exists)
+
+	if err == sql.ErrNoRows {
+		exists.Bool = false
+
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &pb.CheckUserAccountResponse{
+		Exists: exists.Bool,
 	}, nil
 }

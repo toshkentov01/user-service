@@ -6,11 +6,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"testing"
 
 	"github.com/joho/godotenv"
+	"github.com/google/uuid"
 	"github.com/toshkentov01/alif-tech-task/user-service/config"
 	pb "github.com/toshkentov01/alif-tech-task/user-service/genproto/user-service"
 	"github.com/toshkentov01/alif-tech-task/user-service/pkg/logger"
@@ -103,10 +103,15 @@ func TestCheckFields(t *testing.T) {
 }
 
 func TestCreateIdentifiedUser(t *testing.T) {
-	username, email, fullName, password := "testusername", "testemail@gmail.com", "testFullName", "sardor@11T"
+	id, err := uuid.NewRandom()
+	if err != nil {
+		t.Errorf("Error while generation id")
+	}
+	username, email, fullName, password := "testusername2", "testemail2@gmail.com", "testFullName2", "sardor@11T"
 	accessToken, refreshToken := "testAccess", "testRefresh"
 
-	result, err := userService.CreateIdentifiedUser(context.Background(), &pb.CreateIdentifiedUserRequest{
+	_, err = userService.CreateIdentifiedUser(context.Background(), &pb.CreateIdentifiedUserRequest{
+		Id:           id.String(),
 		Username:     username,
 		FullName:     fullName,
 		Email:        email,
@@ -119,5 +124,4 @@ func TestCreateIdentifiedUser(t *testing.T) {
 		t.Errorf("Error while creating identified user, err: %v", err.Error())
 	}
 
-	log.Println(result.Id)
 }

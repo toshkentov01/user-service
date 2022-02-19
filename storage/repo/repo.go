@@ -20,8 +20,9 @@ type Reader interface {
 
 // Writer interface for inserting data
 type Writer interface {
-	CreateUnIdentifiedUser(username, password string) (*pb.CreateUnIdentifiedUserResponse, error)
-	CreateIdentifiedUser(user *pb.CreateIdentifiedUserRequest) (*pb.CreateIdentifiedUserResponse, error)
+	CreateUnIdentifiedUser(id, username, password, accessToken, refreshToken string)  error
+	CreateIdentifiedUser(user *pb.CreateIdentifiedUserRequest)  error
 	Income(userID string, incomeAmount int64) error
 	Expense(userID string, expenseAmount int64) error
+	CheckUserAccount(username, password string) (*pb.CheckUserAccountResponse, error)
 }

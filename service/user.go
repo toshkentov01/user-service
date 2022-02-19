@@ -7,6 +7,8 @@ import (
 	newerrors "github.com/toshkentov01/alif-tech-task/user-service/new_errors"
 	l "github.com/toshkentov01/alif-tech-task/user-service/pkg/logger"
 	"github.com/toshkentov01/alif-tech-task/user-service/storage"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/toshkentov01/alif-tech-task/user-service/genproto/user-service"
 )
@@ -31,43 +33,22 @@ func NewUserService(log l.Logger) *UserService {
 // CheckFields checks user's username and email for existence
 func (s *UserService) CheckFields(ctx context.Context, request *pb.CheckfieldsRequest) (*pb.CheckfieldsResponse, error) {
 	result, err := s.storage.User().CheckFields(request.Username, request.Email)
-	log.Println("ERROR: ", err)
-
+	log.Println(request.Email)
 	return result, errorHandler(s.logger, err, "falied to check fields")
 }
 
 // CreateUnIdentifiedUser method creates unidentified users
-func (s *UserService) CreateUnIdentifiedUser(ctx context.Context, request *pb.CreateUnIdentifiedUserRequest) (*pb.CreateUnIdentifiedUserResponse, error) {
-	result, err := s.storage.User().CreateUnIdentifiedUser(request.Username, request.Password)
-	if err != nil {
-		if err == newerrors.ErrUsernameExists {
-			return nil, newerrors.ErrUsernameExists
+func (s *UserService) CreateUnIdentifiedUser(ctx context.Context, request *pb.CreateUnIdentifiedUserRequest) (*pb.Empty, error) {
+	err := s.storage.User().CreateUnIdentifiedUser(request.Id, request.Username, request.Password, request.AccessToken, request.RefreshToken)
 
-		} else if err != nil {
-			return nil, errorHandler(s.logger, err, "failed to create unidentifed user")
-		}
-	}
-
-	return result, nil
+	return &pb.Empty{}, errorHandler(s.logger, err, "failed to create unidentified user")
 }
 
 // CreateIdentifiedUser method creates identified users
-func (s *UserService) CreateIdentifiedUser(ctx context.Context, request *pb.CreateIdentifiedUserRequest) (*pb.CreateIdentifiedUserResponse, error) {
-	result, err := s.storage.User().CreateIdentifiedUser(request)
-	if err != nil {
-		if err == newerrors.ErrUsernameExists {
-			return nil, newerrors.ErrUsernameExists
+func (s *UserService) CreateIdentifiedUser(ctx context.Context, request *pb.CreateIdentifiedUserRequest) (*pb.Empty, error) {
+	err := s.storage.User().CreateIdentifiedUser(request)
 
-		} else if err == newerrors.ErrEmailExists {
-			return nil, newerrors.ErrEmailExists
-
-		} else if err != nil {
-			log.Println(err.Error())
-			return nil, errorHandler(s.logger, err, "failed to create identified user")
-		}
-	}
-
-	return result, nil
+	return &pb.Empty{}, errorHandler(s.logger, err, "failed to create identified user")
 }
 
 // GetBalance method gets user's balance
@@ -88,7 +69,7 @@ func (s *UserService) ListTotalOperationsByType(ctx context.Context, request *pb
 func (s *UserService) Income(ctx context.Context, request *pb.IncomeRequest) (*pb.Empty, error) {
 	err := s.storage.User().Income(request.UserId, request.IncomeAmount)
 	if err == newerrors.ErrMaximumAmount {
-		return nil, newerrors.ErrMaximumAmount
+		return nil, status.Error(codes.PermissionDenied, "Permission denied")
 
 	} else if err != nil {
 		return nil, err
@@ -101,7 +82,7 @@ func (s *UserService) Income(ctx context.Context, request *pb.IncomeRequest) (*p
 func (s *UserService) Expense(ctx context.Context, request *pb.ExpenseRequest) (*pb.Empty, error) {
 	err := s.storage.User().Expense(request.UserId, request.ExpenseAmount)
 	if err == newerrors.ErrNotEnoughCash {
-		return nil, newerrors.ErrNotEnoughCash
+		return nil, status.Error(codes.PermissionDenied, "Permission denied")
 
 	} else if err != nil {
 		return nil, err
@@ -115,4 +96,16 @@ func (s *UserService) CheckUserType(ctx context.Context, request *pb.CheckUserTy
 	result, err := s.storage.User().CheckUserType(request.UserId)
 
 	return result, errorHandler(s.logger, err, "failed to check user type")
+}
+
+// CheckUserAccount method checks whether user has an account or not
+func (s *UserService) CheckUserAccount(ctx context.Context, request *pb.CheckUserAccountRequest) (*pb.CheckUserAccountResponse, error) {
+	result, err := s.storage.User().CheckUserAccount(request.Username, request.Password)
+
+	if err != nil {
+		s.logger.Error("Error while checking user existence"+err.Error())
+		return nil, err
+	}
+	
+	return result, nil
 }
